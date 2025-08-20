@@ -1,0 +1,220 @@
+body {
+  background-color: #222;
+  margin: 0;
+  font-family: sans-serif;
+  color: white;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center; /* 居中 */
+  height: 100vh; /* 占满窗口高度 */
+}
+
+#seedWrapper {
+  position: relative;
+  width: 400px;
+  height: 600px;
+  background: url("images/back.jpg") no-repeat center / contain;
+  border: none;
+  margin: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#seedCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;   
+  height: 100%;
+  background: transparent;
+  touch-action: none;
+  cursor: crosshair;
+  border: none;
+}
+
+#container {
+  position: relative;
+  width: 100vw;
+  height: 90vh;
+  background: #333;
+  overflow: hidden;
+  box-sizing: border-box;
+  user-select: none;
+  display: none;
+}
+
+.card {
+  position: absolute;
+  height: 25vh;
+  width: calc(25vh * 0.583);
+  perspective: 1000px;
+  cursor: pointer;
+  border-radius: 1.25vh;
+  border: 0.5vh solid #666;
+  overflow: hidden;
+  transition:
+    transform 0.4s,
+    box-shadow 0.3s,
+    left 0.6s,
+    top 0.6s;
+  user-select: none;
+  background: transparent;
+  transform-origin: center center;
+  transform: translateX(-50%);
+  left: 0;
+  background-clip: padding-box;
+}
+
+.card.selected {
+  box-shadow: 0 0 5vh 1.25vh gold;
+  transform: translateX(-50%) scale(1.1);
+  z-index: 10000 !important;
+}
+
+.card.enlarged {
+  transform: translateX(-50%) scale(1.75);
+  transition: transform 0.6s;
+}
+
+.inner {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+  position: relative;
+  border-radius: 1.25vh;
+}
+
+.card.flipped .inner {
+  transform: rotateY(180deg);
+}
+
+.front, .back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+}
+
+.front {
+  background: #888;
+  background-size: cover;
+  background-position: center;
+}
+
+.back {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  font-size: 2vh;
+  color: black;
+  user-select: none;
+  transition: transform 0.6s;
+}
+
+.back.reverse {
+  transform: rotateY(180deg) rotateZ(180deg);
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,1);
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.6s;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card.flipped:hover .overlay {
+  opacity: 0.7;
+}
+
+.name, .hover-upright, .hover-reversed {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999;
+  font-size: 1.4vh;
+  color: black;
+  text-align: center;
+  word-break: break-word;
+  width: 90%;
+  line-height: 2.1vh;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+  transition: opacity 0.3s;
+}
+
+/* === FIXED VISIBILITY RULES === */
+
+/* hide by default */
+.hover-upright,
+.hover-reversed,
+.name {
+  opacity: 0;
+}
+
+/* show name on hover */
+.card.flipped:hover .name {
+  opacity: 1;
+}
+
+/* show upright text only when active + hover */
+.card.flipped:hover .hover-upright[data-active="true"] {
+  opacity: 1;
+}
+
+/* show reversed text only when active + hover */
+.card.flipped:hover .hover-reversed[data-active="true"] {
+  opacity: 1;
+}
+
+.back.reverse .name,
+.back.reverse .hover-reversed {
+  transform: translate(-50%, -50%) rotate(180deg);
+}
+
+button {
+  margin-top: 2vh;
+  padding: 1vh 2vh;
+  font-size: 2vh;
+  cursor: pointer;
+  border-radius: 1vh;
+  border: none;
+  background-color: gray;
+  color: white;
+  transition: background-color 0.3s;
+  user-select: none;
+}
+
+button:disabled {
+  background-color: #555;
+  cursor: not-allowed;
+}
+
+#flipBtn { display: none; }
+
+.shrink-out {
+  animation: shrinkOut 0.8s forwards;
+}
+
+@keyframes shrinkOut {
+  0% { transform: scale(1) translateY(0); opacity: 1; }
+  100% { transform: scale(0.1) translateY(-150%); opacity: 0; }
+}

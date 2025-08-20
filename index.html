@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="images/favicon.png" type="image/png">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>围城塔罗</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<audio id="bgm" src="sfx/bgm.mp3" loop></audio>
+<audio id="flipSound" src="sfx/card-sounds-35956.mp3"></audio>
+
+<div id="seedWrapper">
+    <canvas id="seedCanvas" width="400" height="600"></canvas>
+</div>
+
+<div id="container"></div>
+<div id="overlay"></div>
+
+<div style="width: 100%; text-align: center;">
+    <button id="flipBtn" disabled>Reveal</button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
