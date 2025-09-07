@@ -2,6 +2,8 @@
 
 This suit of tarot cards is inspired by *Fortress Besieged*, a novel by Qian Zhongshu. [Find your tarot readings.](https://petaladrift.github.io/Fortress-Besieged-Tarot/)
 
+Web version designed and coded by [Hannah](https://github.com/Hannah-Fan0) and [Petal Adrift](https://github.com/PetalAdrift).
+
 ## copyrights
 
 While we do not claim copyrights for the code that hosts interactive tarot, the following materials are copyright protected:
