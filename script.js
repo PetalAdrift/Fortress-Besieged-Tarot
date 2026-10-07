@@ -230,9 +230,7 @@ function updateCardAccessibility(card) {
 
   if (isReadingMode()) {
     const data = getCardData(idx);
-    const orientation = card.querySelector(".back")?.classList.contains("reverse")
-      ? "reversed"
-      : "upright";
+    const orientation = cardOrientation[idx] ? "upright" : "reversed";
     const name = data?.name || "Tarot card";
     const expanded = card.classList.contains("show-info");
     card.setAttribute(
@@ -247,9 +245,10 @@ function updateCardAccessibility(card) {
   const selected = selectedIndices.has(idx);
   card.setAttribute("aria-pressed", String(selected));
   card.removeAttribute("aria-expanded");
+  const orientation = cardOrientation[idx] ? "upright" : "reversed";
   card.setAttribute(
     "aria-label",
-    `Tarot card ${Number(card.dataset.position) + 1} of ${cardCount}, ${selected ? "selected" : "not selected"}`
+    `Tarot card ${Number(card.dataset.position) + 1} of ${cardCount}, ${orientation}, ${selected ? "selected" : "not selected"}. Double-click or press R to invert.`
   );
 }
 
@@ -263,7 +262,7 @@ function populateCardText() {
     const nameDiv = back.querySelector(".name");
     const uprightDiv = back.querySelector(".hover-upright");
     const reversedDiv = back.querySelector(".hover-reversed");
-    const isReversed = back.classList.contains("reverse");
+    const isReversed = !cardOrientation[idx];
 
     nameDiv.textContent = data.name || "";
     uprightDiv.textContent = data.upright || "";
@@ -273,6 +272,72 @@ function populateCardText() {
 
     updateCardAccessibility(card);
   });
+}
+
+
+function syncCardOrientation(card) {
+  const idx = Number(card.dataset.index);
+  const isReversed = !cardOrientation[idx];
+
+  card.classList.toggle("orientation-reversed", isReversed);
+
+  const uprightDiv = card.querySelector(".hover-upright");
+  const reversedDiv = card.querySelector(".hover-reversed");
+
+  if (uprightDiv) uprightDiv.dataset.active = isReversed ? "false" : "true";
+  if (reversedDiv) reversedDiv.dataset.active = isReversed ? "true" : "false";
+
+  updateCardAccessibility(card);
+}
+
+function toggleCardOrientation(card) {
+  if (isReadingMode()) return;
+
+  const idx = Number(card.dataset.index);
+  cardOrientation[idx] = !cardOrientation[idx];
+  syncCardOrientation(card);
+}
+
+// Native mouse double-clicks fire two ordinary click events first, so the
+// selection state naturally returns to where it started. The double-click
+// itself only changes orientation.
+let suppressNativeDoubleClickUntil = 0;
+
+function handleCardDoubleClick(e) {
+  if (isReadingMode()) return;
+
+  // Some touch browsers synthesize dblclick after our pointer-based double tap.
+  if (performance.now() < suppressNativeDoubleClickUntil) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+  toggleCardOrientation(e.currentTarget);
+}
+
+// Touch devices do not consistently emit dblclick, so detect a second tap on
+// the same card within a short window. The two generated click events still
+// cancel each other's selection change, leaving only the orientation toggle.
+let lastTouchTapCard = null;
+let lastTouchTapTime = 0;
+const doubleTapWindow = 340;
+
+function handleCardPointerUp(e) {
+  if (isReadingMode() || e.pointerType !== "touch") return;
+
+  const now = performance.now();
+  const card = e.currentTarget;
+
+  if (lastTouchTapCard === card && now - lastTouchTapTime <= doubleTapWindow) {
+    e.preventDefault();
+    lastTouchTapCard = null;
+    lastTouchTapTime = 0;
+    suppressNativeDoubleClickUntil = now + 500;
+    toggleCardOrientation(card);
+    return;
+  }
+
+  lastTouchTapCard = card;
+  lastTouchTapTime = now;
 }
 
 function layoutDesktopDeck() {
@@ -335,6 +400,12 @@ function toggleCardInfo(card) {
 }
 
 function handleCardKeydown(e) {
+  if ((e.key === "r" || e.key === "R") && !isReadingMode()) {
+    e.preventDefault();
+    toggleCardOrientation(e.currentTarget);
+    return;
+  }
+
   if (e.key !== "Enter" && e.key !== " ") return;
   e.preventDefault();
   toggleSelection(e.currentTarget);
@@ -352,6 +423,9 @@ function generateCards() {
     card.tabIndex = 0;
     card.setAttribute("role", "button");
 
+    const orientationFrame = document.createElement("div");
+    orientationFrame.className = "orientation-frame";
+
     const inner = document.createElement("div");
     inner.className = "inner";
 
@@ -362,7 +436,10 @@ function generateCards() {
     const back = document.createElement("div");
     back.className = "back";
     back.style.backgroundImage = `url("images/${cardIndex}.jpg")`;
-    if (!cardOrientation[cardIndex]) back.classList.add("reverse");
+
+    if (!cardOrientation[cardIndex]) {
+      card.classList.add("orientation-reversed");
+    }
 
     const overlay = document.createElement("div");
     overlay.className = "overlay";
@@ -378,9 +455,12 @@ function generateCards() {
 
     back.append(overlay, nameDiv, uprightDiv, reversedDiv);
     inner.append(front, back);
-    card.appendChild(inner);
+    orientationFrame.appendChild(inner);
+    card.appendChild(orientationFrame);
 
     card.addEventListener("click", () => toggleSelection(card));
+    card.addEventListener("dblclick", handleCardDoubleClick);
+    card.addEventListener("pointerup", handleCardPointerUp);
     card.addEventListener("keydown", handleCardKeydown);
     container.appendChild(card);
 
