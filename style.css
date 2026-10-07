@@ -1,165 +1,333 @@
+:root {
+  --page-bg: #1d1b24;
+  --pattern: #2e293b;
+  --deck-bg: #201e29;
+  --bar-bg: rgba(20, 18, 27, 0.96);
+  --card-border: #666;
+  --text: #fff;
+  --muted: #77747f;
+  --gold: #ffd34e;
+  --control-bg: #666;
+  --control-bg-disabled: #4c4c4c;
+  --top-bar-height: 56px;
+  --bottom-bar-height: 72px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
 body {
-  background-color: #222;
   margin: 0;
+  min-height: 100%;
+  color: var(--text);
   font-family: sans-serif;
-  color: white;
+  background: var(--page-bg);
+}
+
+body {
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/*
+  Build an ordinary checkerboard on an oversized fixed layer, then rotate
+  the entire layer 45deg. This rotates the grid itself (diamond checks),
+  rather than merely using angled gradients inside an axis-aligned grid.
+*/
+body::before {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  inset: -80vmax;
+  pointer-events: none;
+  background-color: var(--page-bg);
+  background-image:
+    linear-gradient(45deg, var(--pattern) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--pattern) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--pattern) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--pattern) 75%);
+  background-size: 40px 40px;
+  background-position: 0 0, 0 20px, 20px -20px, -20px 0;
+  transform: rotate(45deg);
+  transform-origin: 50% 50%;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+button {
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--control-bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
   user-select: none;
+  touch-action: manipulation;
+  transition: background-color 0.35s ease, transform 0.35s ease, opacity 0.35s ease;
+}
+
+button:hover:not(:disabled) {
+  background: #7a7a7a;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible,
+.card:focus-visible,
+#seedCanvas:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+
+button:disabled {
+  background: var(--control-bg-disabled);
+  color: #aaa;
+  cursor: not-allowed;
+  opacity: 0.78;
+}
+
+/* Fixed-height chrome. The deck area never changes height when Reveal becomes Da Capo. */
+#topBar {
+  position: fixed;
+  z-index: 20000;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--top-bar-height) + var(--safe-top));
+  padding: var(--safe-top) max(0.7rem, var(--safe-right)) 0 max(0.7rem, var(--safe-left));
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center; /* 居中 */
-  height: 100vh; /* 占满窗口高度 */
+  justify-content: center;
+  background: var(--bar-bg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
 }
 
-/* ---- 卡牌字体和大小在小屏缩小 ---- */
-@media (max-width: 768px) {
-  .card {
-    height: 20vh; /* 手机上稍微小一点 */
-    width: calc(20vh * 0.583);
-  }
-
-  .back {
-    font-size: 1.6vh;
-  }
-
-  button {
-    font-size: 2.5vh;
-    padding: 1.2vh 2.4vh;
-  }
+#readingControls {
+  position: fixed;
+  z-index: 20000;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--bottom-bar-height) + var(--safe-bottom));
+  padding: 0 max(1rem, var(--safe-right)) var(--safe-bottom) max(1rem, var(--safe-left));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bar-bg);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
 }
 
-/* 超小屏 (竖屏手机) 再适配 */
-@media (max-width: 480px) {
-  .card {
-    height: 18vh;
-    width: calc(18vh * 0.583);
-  }
+.utility-btn {
+  position: absolute;
+  right: max(0.7rem, var(--safe-right));
+  min-height: 38px;
+  padding: 0.42rem 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(46, 41, 59, 0.82);
+  font-size: 0.88rem;
+}
 
-  .back {
-    font-size: 1.4vh;
-  }
+#flipBtn {
+  min-width: 9rem;
+}
 
-  .name, .hover-upright, .hover-reversed {
-    font-size: 1.2vh;
-    line-height: 1.8vh;
-  }
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1.15rem, 5vw, 3.5rem);
+  padding: 0 5.8rem;
+  white-space: nowrap;
+  font-size: clamp(0.82rem, 1.4vw, 1rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+}
 
-  button {
-    font-size: 2vh;
-    padding: 1vh 2vh;
-  }
+.reading-slot {
+  color: var(--muted);
+  transition: color 0.5s ease, text-shadow 0.5s ease, opacity 0.5s ease;
+}
+
+.reading-slot.active {
+  color: #fff;
+  text-shadow: 0 0 0.9rem rgba(255, 255, 255, 0.32);
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100dvh;
+  padding-top: calc(var(--top-bar-height) + var(--safe-top));
+}
+
+#seedStage,
+#readingStage {
+  width: 100%;
+}
+
+#seedStage {
+  height: calc(
+    100dvh - var(--top-bar-height) - var(--bottom-bar-height) -
+    var(--safe-top) - var(--safe-bottom)
+  );
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-items: center;
+  gap: 0.35rem;
+  padding: 1rem max(1rem, var(--safe-right)) 1rem max(1rem, var(--safe-left));
+}
+
+.feedback {
+  width: min(92vw, 720px);
+  min-height: 1.35em;
+  margin: 0 auto;
+  color: #aaa6b3;
+  text-align: center;
+  font-size: 0.88rem;
+  line-height: 1.35;
 }
 
 #seedWrapper {
   position: relative;
-  width: 90vw;
-  height: 135vw;
-  max-width: 400px;
-  max-height: 600px;
+  width: min(
+    90vw,
+    400px,
+    calc(
+      (100dvh - var(--top-bar-height) - var(--bottom-bar-height) -
+      var(--safe-top) - var(--safe-bottom) - 4.5rem) * 0.6667
+    )
+  );
+  aspect-ratio: 2 / 3;
+  max-height: min(
+    600px,
+    calc(
+      100dvh - var(--top-bar-height) - var(--bottom-bar-height) -
+      var(--safe-top) - var(--safe-bottom) - 4.5rem
+    )
+  );
   background: url("images/back.jpg") no-repeat center / contain;
-  border: none;
-  margin: auto;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  border-radius: 1rem;
+  overflow: hidden;
 }
 
 #seedCanvas {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
+  border: 0;
   background: transparent;
-  touch-action: none;
   cursor: crosshair;
-  border: none;
+  touch-action: none;
+}
+
+#readingStage {
+  height: calc(
+    100dvh - var(--top-bar-height) - var(--bottom-bar-height) -
+    var(--safe-top) - var(--safe-bottom)
+  );
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
 }
 
 #container {
   position: relative;
-  width: 100vw;
-  height: 90vh;
-  background: #333;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
-  box-sizing: border-box;
+  /* Keep the deck transparent so the genuinely rotated checker layer shows through. */
+  background: transparent;
+  overscroll-behavior: contain;
+  scrollbar-color: #777 #2b2b2b;
   user-select: none;
-  display: none;
 }
 
 .card {
   position: absolute;
-  height: 25vh;
-  width: calc(25vh * 0.583);
-  perspective: 1000px;
-  cursor: pointer;
-  border-radius: 1.25vh;
-  border: 0.5vh solid #666;
-  overflow: hidden;
-  transition:
-    transform 0.4s,
-    box-shadow 0.3s,
-    left 0.6s,
-    top 0.6s;
-  user-select: none;
-  background: transparent;
+  width: calc(clamp(150px, 24dvh, 260px) * 0.583);
+  height: clamp(150px, 24dvh, 260px);
+  transform: translate(-50%, -50%);
   transform-origin: center center;
-  transform: translateX(-50%);
-  left: 0;
-  background-clip: padding-box;
+  perspective: 1000px;
+  border: 0.35rem solid var(--card-border);
+  border-radius: 0.8rem;
+  background: transparent;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition:
+    transform 0.52s ease,
+    box-shadow 0.45s ease,
+    opacity 0.45s ease,
+    filter 0.45s ease;
 }
 
 .card.selected {
-  box-shadow: 0 0 5vh 1.25vh gold;
-  transform: translateX(-50%) scale(1.1);
-  z-index: 10000;
+  z-index: 10000 !important;
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow: 0 0 2.2rem 0.65rem rgba(255, 211, 78, 0.95);
 }
 
-.card.enlarged {
-  transform: translateX(-50%) scale(1.75);
-  transition: transform 0.6s;
+.selection-locked .card:not(.selected) {
+  opacity: 0.52;
+  filter: saturate(0.72);
 }
 
 .inner {
+  position: relative;
   width: 100%;
   height: 100%;
-  transition: transform 0.6s;
+  border-radius: inherit;
   transform-style: preserve-3d;
-  position: relative;
-  border-radius: 1.25vh;
+  transition: transform 1.2s cubic-bezier(0.22, 0.72, 0.22, 1);
 }
 
 .card.flipped .inner {
   transform: rotateY(180deg);
 }
 
-.front, .back {
+.front,
+.back {
   position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: inherit;
 }
 
 .front {
-  background: #888;
-  background-size: cover;
-  background-position: center;
+  background: #888 center / cover no-repeat;
 }
 
 .back {
-  position: relative;
-  background-size: cover;
+  overflow: hidden;
   background-position: center;
+  background-size: cover;
+  color: #111;
   transform: rotateY(180deg);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  font-weight: bold;
-  font-size: 2vh;
-  color: black;
-  user-select: none;
-  transition: transform 0.6s;
 }
 
 .back.reverse {
@@ -168,62 +336,49 @@ body {
 
 .overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255,255,255,1);
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity 0.6s;
-  pointer-events: none;
+  inset: 0;
   z-index: 1;
-}
-
-.card.flipped:hover .overlay {
-  opacity: 0.7;
-}
-
-.name, .hover-upright, .hover-reversed {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 999;
-  font-size: 1.4vh;
-  color: black;
-  text-align: center;
-  word-break: break-word;
-  width: 90%;
-  line-height: 2.1vh;
-  padding: 0;
-  box-sizing: border-box;
-  user-select: none;
-  transition: opacity 0.3s;
-}
-
-/* === FIXED VISIBILITY RULES === */
-
-/* hide by default */
-.hover-upright,
-.hover-reversed,
-.name {
+  background: rgba(255, 255, 255, 0.93);
   opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
 }
 
-/* show name on hover */
-.card.flipped:hover .name {
-  opacity: 1;
+.name,
+.meaning {
+  position: absolute;
+  left: 50%;
+  z-index: 2;
+  width: 84%;
+  color: #111;
+  text-align: center;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  transition: opacity 0.4s ease;
 }
 
-/* show upright text only when active + hover */
-.card.flipped:hover .hover-upright[data-active="true"] {
-  opacity: 1;
+.name {
+  top: 16%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(0.92rem, 1.45vw, 1.18rem);
+  font-weight: 850;
+  line-height: 1.12;
 }
 
-/* show reversed text only when active + hover */
-.card.flipped:hover .hover-reversed[data-active="true"] {
-  opacity: 1;
+.meaning {
+  top: 50%;
+  transform: translate(-50%, -50%);
+  height: 68%;
+  overflow-y: auto;
+  padding: 0.15rem 0.12rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.9rem, 1.28vw, 1.12rem);
+  font-weight: 650;
+  line-height: 1.38;
+  user-select: text;
+  scrollbar-width: thin;
 }
 
 .back.reverse .name,
@@ -231,31 +386,229 @@ body {
   transform: translate(-50%, -50%) rotate(180deg);
 }
 
-button {
-  margin-top: 2vh;
-  padding: 1vh 2vh;
-  font-size: 2vh;
-  cursor: pointer;
-  border-radius: 1vh;
-  border: none;
-  background-color: gray;
-  color: white;
-  transition: background-color 0.3s;
-  user-select: none;
+.card.flipped.show-info .overlay,
+.card.flipped.show-info .name,
+.card.flipped.show-info .meaning[data-active="true"] {
+  opacity: 1;
 }
 
-button:disabled {
-  background-color: #555;
-  cursor: not-allowed;
+@media (hover: hover) and (pointer: fine) {
+  .card.flipped:hover .overlay,
+  .card.flipped:hover .name,
+  .card.flipped:hover .meaning[data-active="true"] {
+    opacity: 1;
+  }
 }
 
-#flipBtn { display: none; }
+/* Final reading layout. */
+#container.revealed-mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 4vw, 4rem);
+  padding: 1.25rem max(2rem, 4vw);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 1rem;
+}
+
+#container.revealed-mode .card {
+  position: relative;
+  inset: auto !important;
+  flex: 0 0 auto;
+  width: clamp(210px, 22vw, 310px);
+  height: auto;
+  aspect-ratio: 0.583 / 1;
+  transform: none;
+  transform-origin: center center;
+  scroll-snap-align: center;
+  box-shadow: 0 0 1.25rem rgba(0, 0, 0, 0.3);
+}
+
+#container.revealed-mode .card.reveal-moving {
+  transition: none !important;
+  pointer-events: none;
+  will-change: transform;
+}
+
+#container.revealed-mode .card:hover,
+#container.revealed-mode .card:focus-visible {
+  transform: translateY(-0.2rem);
+}
+
+#container.revealed-mode .name {
+  font-size: clamp(1rem, 1.55vw, 1.28rem);
+}
+
+#container.revealed-mode .meaning {
+  font-size: clamp(1rem, 1.4vw, 1.22rem);
+  line-height: 1.42;
+}
 
 .shrink-out {
-  animation: shrinkOut 0.8s forwards;
+  animation: shrinkOut 0.7s cubic-bezier(0.22, 0.72, 0.22, 1) forwards;
 }
 
 @keyframes shrinkOut {
-  0% { transform: scale(1) translateY(0); opacity: 1; }
-  100% { transform: scale(0.1) translateY(-150%); opacity: 0; }
+  from {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: scale(0.12) translateY(-110%);
+    opacity: 0;
+  }
+}
+
+/* Tablet / phone deck: three swipeable rows with usable touch targets. */
+@media (max-width: 768px) {
+  :root {
+    --top-bar-height: 54px;
+    --bottom-bar-height: 68px;
+  }
+
+  .utility-btn {
+    font-size: 0.8rem;
+    min-height: 36px;
+    padding: 0.38rem 0.6rem;
+  }
+
+  .status {
+    gap: clamp(0.65rem, 4vw, 1.35rem);
+    padding: 0 5.4rem 0 0.5rem;
+    font-size: clamp(0.72rem, 3vw, 0.9rem);
+    letter-spacing: 0.08em;
+  }
+
+  #container.deck-mode {
+    --mobile-card-width: clamp(74px, 22vw, 104px);
+    --mobile-card-height: calc(var(--mobile-card-width) / 0.583);
+    display: grid;
+    grid-template-rows: repeat(3, var(--mobile-card-height));
+    grid-auto-flow: column;
+    grid-auto-columns: var(--mobile-card-width);
+    align-content: center;
+    justify-content: start;
+    gap: 0.8rem 0.65rem;
+    padding: 1rem max(1rem, var(--safe-left)) 1rem max(1rem, var(--safe-left));
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #container.deck-mode .card {
+    position: relative;
+    inset: auto !important;
+    width: var(--mobile-card-width);
+    height: var(--mobile-card-height);
+    transform: none;
+    scroll-snap-align: start;
+    border-width: 0.25rem;
+    border-radius: 0.55rem;
+  }
+
+  #container.deck-mode .card.selected {
+    transform: translateY(-0.15rem) scale(1.04);
+    box-shadow: 0 0 1rem 0.3rem rgba(255, 211, 78, 0.95);
+  }
+
+  #container.revealed-mode {
+    justify-content: flex-start;
+    gap: 1rem;
+    padding: 0.8rem 14vw;
+    scroll-padding-inline: 14vw;
+    overscroll-behavior-x: contain;
+  }
+
+  #container.revealed-mode .card {
+    width: min(74vw, 320px);
+    max-height: calc(100% - 0.25rem);
+  }
+
+  #container.revealed-mode .card:hover,
+  #container.revealed-mode .card:focus-visible {
+    transform: none;
+  }
+
+  #container.revealed-mode .name {
+    top: 15%;
+    font-size: clamp(1rem, 4.5vw, 1.26rem);
+  }
+
+  #container.revealed-mode .meaning {
+    top: 50%;
+    width: 82%;
+    height: 70%;
+    font-size: clamp(1rem, 4vw, 1.2rem);
+    line-height: 1.4;
+  }
+}
+
+@media (max-width: 480px) {
+  #container.deck-mode {
+    --mobile-card-width: clamp(70px, 23vw, 92px);
+    gap: 0.65rem 0.55rem;
+  }
+
+  .status {
+    gap: 0.75rem;
+    font-size: 0.72rem;
+  }
+}
+
+/* Landscape phones stay height-driven. */
+@media (max-height: 520px) and (orientation: landscape) {
+  :root {
+    --top-bar-height: 48px;
+    --bottom-bar-height: 58px;
+  }
+
+  #seedStage {
+    padding-block: 0.45rem;
+  }
+
+  #seedWrapper {
+    width: auto;
+    height: calc(
+      100dvh - var(--top-bar-height) - var(--bottom-bar-height) -
+      var(--safe-top) - var(--safe-bottom) - 2.4rem
+    );
+    max-height: 420px;
+  }
+
+  #container.deck-mode {
+    --mobile-card-width: clamp(62px, 12vw, 86px);
+  }
+
+  #container.revealed-mode {
+    padding-block: 0.45rem;
+  }
+
+  #container.revealed-mode .card {
+    width: auto;
+    height: calc(100% - 0.2rem);
+    aspect-ratio: 0.583 / 1;
+  }
+
+  #container.revealed-mode .name {
+    font-size: clamp(0.82rem, 2.3vh, 1rem);
+  }
+
+  #container.revealed-mode .meaning {
+    font-size: clamp(0.78rem, 2.1vh, 0.95rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

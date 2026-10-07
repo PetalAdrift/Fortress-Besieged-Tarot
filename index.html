@@ -1,27 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="icon" href="images/favicon.png" type="image/png">
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>围城塔罗</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <link rel="icon" href="images/favicon.png" type="image/png" />
+  <title>围城塔罗</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<audio id="bgm" src="sfx/bgm.mp3" loop></audio>
-<audio id="flipSound" src="sfx/card-sounds-35956.mp3"></audio>
+  <audio id="bgm" src="sfx/bgm.mp3" loop preload="none"></audio>
+  <audio id="flipSound" src="sfx/card-sounds-35956.mp3" preload="auto"></audio>
 
-<div id="seedWrapper">
-    <canvas id="seedCanvas" width="400" height="600"></canvas>
-</div>
+  <header id="topBar">
+    <div id="selectionStatus" class="status" aria-live="polite" hidden>
+      <span class="reading-slot" data-slot="0">past</span>
+      <span class="reading-slot" data-slot="1">present</span>
+      <span class="reading-slot" data-slot="2">future</span>
+    </div>
 
-<div id="container"></div>
-<div id="overlay"></div>
+    <button id="soundBtn" class="utility-btn" type="button" aria-pressed="false">
+      Sound: Off
+    </button>
+  </header>
 
-<div style="width: 100%; text-align: center;">
-    <button id="flipBtn" disabled>Reveal</button>
-</div>
+  <main id="app">
+    <section id="seedStage" aria-label="Shuffle the tarot deck by drawing on the card">
+      <div id="seedWrapper">
+        <canvas
+          id="seedCanvas"
+          width="400"
+          height="600"
+          aria-label="Draw on the card to shuffle the tarot deck"
+        ></canvas>
+      </div>
+      <p id="seedFeedback" class="feedback" aria-live="polite"></p>
+    </section>
 
-<script src="script.js"></script>
+    <section id="readingStage" aria-label="Tarot reading">
+      <div
+        id="container"
+        class="deck-mode"
+        role="group"
+        aria-label="Tarot deck"
+        hidden
+      ></div>
+    </section>
+  </main>
+
+  <footer id="readingControls">
+    <button id="flipBtn" type="button" disabled hidden>Reveal</button>
+  </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>

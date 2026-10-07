@@ -1,88 +1,193 @@
-console.log("Credits:\n Webpage coding by Hoyii 🌸, Zhihan 🕊️, and the AI chatbot 🤖.\n Background music by 歌声私有化 @music_privatized 🕶️.\n Graphics by Hoyii, Kristin 🐈‍⬛, 安喵喵 🐱, and Yuyuan 👩.\n Sound effect (card-sounds) by \"henrygillard (Freesound)\" at pixabay.")
-const bgm = document.getElementById("bgm");
-const flipSound = document.getElementById("flipSound");
-
-document.body.addEventListener(
-  "click",
-  () => {
-    if (bgm.paused) {
-      bgm.volume = 0.5;
-      bgm.play().catch((err) => console.log("BGM 播放失败:", err));
-    }
-  },
-  { once: true }
+console.log(
+  "Credits:\n Webpage coding by Hoyii 🌸, Zhihan 🕊️, and the AI chatbot 🤖.\n Background music by 歌声私有化 @music_privatized 🕶️.\n Graphics by Hoyii, Kristin 🐈‍⬛, 安喵喵 🐱, and Yuyuan 👩.\n Sound effect (card-sounds) by \"henrygillard (Freesound)\" at pixabay."
 );
 
-// ---------- Canvas for Seed ----------
+// ---------- DOM ----------
+const bgm = document.getElementById("bgm");
+const flipSound = document.getElementById("flipSound");
+const soundBtn = document.getElementById("soundBtn");
 const canvas = document.getElementById("seedCanvas");
 const ctx = canvas.getContext("2d");
+const seedStage = document.getElementById("seedStage");
 const seedWrapper = document.getElementById("seedWrapper");
+const seedFeedback = document.getElementById("seedFeedback");
+const container = document.getElementById("container");
+const selectionStatus = document.getElementById("selectionStatus");
+const readingControls = document.getElementById("readingControls");
+const flipBtn = document.getElementById("flipBtn");
 
-let drawing = false;
-let drawPointsCount = 0;
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const compactLayout = window.matchMedia("(max-width: 768px)");
+const coarsePointer = window.matchMedia("(hover: none), (pointer: coarse)");
 
-function getPos(e) {
-  const rect = canvas.getBoundingClientRect();
-  if (e.touches) {
-    return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-  } else {
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+// ---------- Audio ----------
+let soundEnabled = false;
+bgm.volume = 0.5;
+flipSound.volume = 0.75;
+
+async function setSoundEnabled(enabled) {
+  soundEnabled = enabled;
+  soundBtn.setAttribute("aria-pressed", String(enabled));
+  soundBtn.textContent = enabled ? "Sound: On" : "Sound: Off";
+
+  if (!enabled) {
+    bgm.pause();
+    return;
+  }
+
+  try {
+    await bgm.play();
+  } catch (err) {
+    soundEnabled = false;
+    soundBtn.setAttribute("aria-pressed", "false");
+    soundBtn.textContent = "Sound: Off";
+    seedFeedback.textContent = "Your browser blocked audio. Tap Sound again to retry.";
+    console.log("BGM playback failed:", err);
   }
 }
 
+soundBtn.addEventListener("click", () => setSoundEnabled(!soundEnabled));
+
+function playFlipSound() {
+  if (!soundEnabled) return;
+  flipSound.currentTime = 0;
+  flipSound.play().catch((err) => console.log("Flip sound failed:", err));
+}
+
+// ---------- Seed drawing ----------
+let drawing = false;
+let activePointerId = null;
+let drawPointsCount = 0;
+let drawDistance = 0;
+let previousPoint = null;
+let rollingSeed = 2166136261;
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY,
+  };
+}
+
+function mixSeed(x, y, count) {
+  const values = [Math.round(x * 10), Math.round(y * 10), count];
+  values.forEach((value) => {
+    rollingSeed ^= value;
+    rollingSeed = Math.imul(rollingSeed, 16777619) >>> 0;
+  });
+}
+
 function startDrawing(e) {
+  if (drawing) return;
   e.preventDefault();
+
   drawing = true;
+  activePointerId = e.pointerId;
   drawPointsCount = 0;
+  drawDistance = 0;
+  rollingSeed = 2166136261;
+  seedFeedback.textContent = "";
+
+  if (canvas.setPointerCapture) {
+    canvas.setPointerCapture(e.pointerId);
+  }
+
   const pos = getPos(e);
+  previousPoint = pos;
+  mixSeed(pos.x, pos.y, 0);
+
   ctx.beginPath();
   ctx.moveTo(pos.x, pos.y);
 }
 
 function draw(e) {
-  if (!drawing) return;
+  if (!drawing || e.pointerId !== activePointerId) return;
   e.preventDefault();
+
   const pos = getPos(e);
-  drawPointsCount++;
-  const hue = drawPointsCount % 360;
-  ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
-  ctx.lineWidth = 2;
-  ctx.lineCap = "round";
+  drawPointsCount += 1;
+  drawDistance += previousPoint
+    ? Math.hypot(pos.x - previousPoint.x, pos.y - previousPoint.y)
+    : 0;
+
+  mixSeed(pos.x, pos.y, drawPointsCount);
+
+  const hue = (drawPointsCount * 7) % 360;
+  const stroke = `hsl(${hue}, 100%, 60%)`;
+  const lineWidth = Math.min(10, 1.6 + drawDistance / 40);
+  const dx = pos.x - previousPoint.x;
+  const dy = pos.y - previousPoint.y;
+  const segmentLength = Math.hypot(dx, dy);
+
+  ctx.strokeStyle = stroke;
+  ctx.fillStyle = stroke;
+  ctx.shadowColor = stroke;
+  ctx.shadowBlur = Math.min(7, 2 + drawDistance / 80);
+  ctx.lineWidth = lineWidth;
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(previousPoint.x, previousPoint.y);
   ctx.lineTo(pos.x, pos.y);
   ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(pos.x, pos.y);
+
+  if (segmentLength > 0.01) {
+    const ux = dx / segmentLength;
+    const uy = dy / segmentLength;
+    const px = -uy;
+    const py = ux;
+    const baseX = pos.x - ux * lineWidth * 0.18;
+    const baseY = pos.y - uy * lineWidth * 0.18;
+    const halfBase = lineWidth * 0.52;
+    const tipX = pos.x + ux * lineWidth * 0.78;
+    const tipY = pos.y + uy * lineWidth * 0.78;
+
+    ctx.beginPath();
+    ctx.moveTo(baseX + px * halfBase, baseY + py * halfBase);
+    ctx.lineTo(baseX - px * halfBase, baseY - py * halfBase);
+    ctx.lineTo(tipX, tipY);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.shadowBlur = 0;
+  previousPoint = pos;
 }
 
 function stopDrawing(e) {
-  if (!drawing) return;
+  if (!drawing || e.pointerId !== activePointerId) return;
   e.preventDefault();
+
   drawing = false;
+  activePointerId = null;
+  previousPoint = null;
   ctx.beginPath();
-  onDrawFinish();
-}
 
-// PC
-canvas.addEventListener("mousedown", startDrawing);
-canvas.addEventListener("mousemove", draw);
-canvas.addEventListener("mouseup", stopDrawing);
-canvas.addEventListener("mouseout", stopDrawing);
-
-// 移动端
-canvas.addEventListener("touchstart", startDrawing, { passive: false });
-canvas.addEventListener("touchmove", draw, { passive: false });
-canvas.addEventListener("touchend", stopDrawing, { passive: false });
-canvas.addEventListener("touchcancel", stopDrawing, { passive: false });
-
-// ---------- Random Seed ----------
-function simpleHash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  if (drawPointsCount < 4 || drawDistance < 24) {
+    seedFeedback.textContent = "Draw a slightly longer mark to begin the reading.";
+    return;
   }
-  return hash >>> 0;
+
+  onDrawFinish(rollingSeed >>> 0);
 }
 
+canvas.addEventListener("pointerdown", startDrawing);
+canvas.addEventListener("pointermove", draw);
+canvas.addEventListener("pointerup", stopDrawing);
+canvas.addEventListener("pointercancel", (e) => {
+  if (!drawing || e.pointerId !== activePointerId) return;
+  drawing = false;
+  activePointerId = null;
+  previousPoint = null;
+  ctx.beginPath();
+  seedFeedback.textContent = "Drawing cancelled. Try again when you are ready.";
+});
+
+// ---------- Seeded random ----------
 function mulberry32(seed) {
   return function () {
     let t = (seed += 0x6d2b79f5);
@@ -92,263 +197,429 @@ function mulberry32(seed) {
   };
 }
 
-// ---------- Card Setup ----------
+// ---------- Card setup ----------
 const cardCount = 78;
-const container = document.getElementById("container");
-const flipBtn = document.getElementById("flipBtn");
 const maxSelection = 3;
 const cardsPerRow = 26;
-const cardHeightVh = 25;
-const cardWidthVwApprox = cardHeightVh * 0.583;
-const offsetXvw = 1.5;
-const rowHeightVh = 27;
 const selectedIndices = new Set();
 const order = Array.from({ length: cardCount }, (_, i) => i);
 const cardOrientation = {};
-for (let i = 0; i < cardCount; i++) cardOrientation[i] = Math.random() < 0.5;
-const containerWidthVw = 100;
-const rowWidthVw = (cardsPerRow - 1) * offsetXvw + cardWidthVwApprox;
-const offsetLeftVw = (containerWidthVw - rowWidthVw) / 2 + cardWidthVwApprox / 2;
-let seededRandom = null;
 let isRestartMode = false;
 
-// ---------- Shuffle ----------
 function shuffleWithSeed(rng) {
-  for (let i = order.length - 1; i > 0; i--) {
+  for (let i = order.length - 1; i > 0; i -= 1) {
     const j = Math.floor(rng() * (i + 1));
     [order[i], order[j]] = [order[j], order[i]];
   }
+
+  for (let i = 0; i < cardCount; i += 1) {
+    cardOrientation[i] = rng() < 0.5;
+  }
 }
 
-// ---------- Generate Cards ----------
+function isReadingMode() {
+  return container.classList.contains("revealed-mode");
+}
+
+function getCardData(index) {
+  return window.cardTextData ? window.cardTextData[index] : null;
+}
+
+function updateCardAccessibility(card) {
+  const idx = Number(card.dataset.index);
+
+  if (isReadingMode()) {
+    const data = getCardData(idx);
+    const orientation = card.querySelector(".back")?.classList.contains("reverse")
+      ? "reversed"
+      : "upright";
+    const name = data?.name || "Tarot card";
+    const expanded = card.classList.contains("show-info");
+    card.setAttribute(
+      "aria-label",
+      `${name}, ${orientation}. ${expanded ? "Interpretation open." : "Tap to read interpretation."}`
+    );
+    card.setAttribute("aria-expanded", String(expanded));
+    card.removeAttribute("aria-pressed");
+    return;
+  }
+
+  const selected = selectedIndices.has(idx);
+  card.setAttribute("aria-pressed", String(selected));
+  card.removeAttribute("aria-expanded");
+  card.setAttribute(
+    "aria-label",
+    `Tarot card ${Number(card.dataset.position) + 1} of ${cardCount}, ${selected ? "selected" : "not selected"}`
+  );
+}
+
+function populateCardText() {
+  document.querySelectorAll(".card").forEach((card) => {
+    const idx = Number(card.dataset.index);
+    const data = getCardData(idx);
+    if (!data) return;
+
+    const back = card.querySelector(".back");
+    const nameDiv = back.querySelector(".name");
+    const uprightDiv = back.querySelector(".hover-upright");
+    const reversedDiv = back.querySelector(".hover-reversed");
+    const isReversed = back.classList.contains("reverse");
+
+    nameDiv.textContent = data.name || "";
+    uprightDiv.textContent = data.upright || "";
+    reversedDiv.textContent = data.reversed || "";
+    uprightDiv.dataset.active = isReversed ? "false" : "true";
+    reversedDiv.dataset.active = isReversed ? "true" : "false";
+
+    updateCardAccessibility(card);
+  });
+}
+
+function layoutDesktopDeck() {
+  if (compactLayout.matches || isReadingMode()) return;
+
+  const rowCenters = [18, 50, 82];
+  const colSpacingVw = 2.45;
+  const rowWidthVw = (cardsPerRow - 1) * colSpacingVw;
+  const leftStartVw = 50 - rowWidthVw / 2;
+
+  document.querySelectorAll(".card").forEach((card) => {
+    const position = Number(card.dataset.position);
+    const row = Math.floor(position / cardsPerRow);
+    const col = position % cardsPerRow;
+
+    card.style.left = `${leftStartVw + col * colSpacingVw}vw`;
+    card.style.top = `${rowCenters[row]}%`;
+    card.style.zIndex = String(row * cardsPerRow + col + 1);
+  });
+}
+
+function toggleSelection(card) {
+  if (isReadingMode()) {
+    toggleCardInfo(card);
+    return;
+  }
+
+  const idx = Number(card.dataset.index);
+
+  if (selectedIndices.has(idx)) {
+    selectedIndices.delete(idx);
+    card.classList.remove("selected");
+  } else if (selectedIndices.size >= maxSelection) {
+    return;
+  } else {
+    selectedIndices.add(idx);
+    card.classList.add("selected");
+  }
+
+  updateCardAccessibility(card);
+  updateSelectionUI();
+}
+
+function toggleCardInfo(card) {
+  if (!card.classList.contains("flipped")) return;
+
+  const willOpen = !card.classList.contains("show-info");
+
+  if (coarsePointer.matches && willOpen) {
+    document.querySelectorAll(".card.show-info").forEach((openCard) => {
+      if (openCard !== card) {
+        openCard.classList.remove("show-info");
+        updateCardAccessibility(openCard);
+      }
+    });
+  }
+
+  card.classList.toggle("show-info", willOpen);
+  updateCardAccessibility(card);
+}
+
+function handleCardKeydown(e) {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  toggleSelection(e.currentTarget);
+}
+
 function generateCards() {
   container.innerHTML = "";
-  const totalRows = Math.ceil(order.length / cardsPerRow);
-  const totalHeightVh = totalRows * rowHeightVh;
-  const containerHeightVh = 90;
-  const verticalOffsetVh = (containerHeightVh - totalHeightVh) / 2;
+  container.className = "deck-mode";
 
-  order.forEach((cardIndex, i) => {
+  order.forEach((cardIndex, position) => {
     const card = document.createElement("div");
-    card.classList.add("card");
-    card.dataset.index = cardIndex;
-    const row = Math.floor(i / cardsPerRow);
-    const col = i % cardsPerRow;
-    card.style.left = `calc(${offsetLeftVw}vw + ${col * offsetXvw}vw)`;
-    card.style.top = `${verticalOffsetVh + row * rowHeightVh}vh`;
-    card.style.zIndex = row * cardsPerRow + col;
+    card.className = "card";
+    card.dataset.index = String(cardIndex);
+    card.dataset.position = String(position);
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
 
     const inner = document.createElement("div");
-    inner.classList.add("inner");
+    inner.className = "inner";
+
     const front = document.createElement("div");
-    front.classList.add("front");
+    front.className = "front";
     front.style.backgroundImage = 'url("images/back.jpg")';
+
     const back = document.createElement("div");
-    back.classList.add("back");
+    back.className = "back";
     back.style.backgroundImage = `url("images/${cardIndex}.jpg")`;
     if (!cardOrientation[cardIndex]) back.classList.add("reverse");
 
     const overlay = document.createElement("div");
-    overlay.classList.add("overlay");
-    const cardNumber = document.createElement("div");
-    cardNumber.classList.add("card-number");
-    const nameDiv = document.createElement("div");
-    nameDiv.classList.add("name");
-    const hoverUprightDiv = document.createElement("div");
-    hoverUprightDiv.classList.add("hover-upright");
-    const hoverReversedDiv = document.createElement("div");
-    hoverReversedDiv.classList.add("hover-reversed");
+    overlay.className = "overlay";
 
-    back.append(overlay, cardNumber, nameDiv, hoverUprightDiv, hoverReversedDiv);
+    const nameDiv = document.createElement("div");
+    nameDiv.className = "name";
+
+    const uprightDiv = document.createElement("div");
+    uprightDiv.className = "hover-upright meaning";
+
+    const reversedDiv = document.createElement("div");
+    reversedDiv.className = "hover-reversed meaning";
+
+    back.append(overlay, nameDiv, uprightDiv, reversedDiv);
     inner.append(front, back);
     card.appendChild(inner);
 
-    card.addEventListener("click", () => {
-      const idx = Number(card.dataset.index);
-      if (card.classList.contains("flipped") && card.classList.contains("enlarged")) return;
-
-      if (selectedIndices.has(idx)) {
-        selectedIndices.delete(idx);
-        card.classList.remove("selected");
-        card.style.zIndex = row * cardsPerRow + col;
-      } else {
-        if (selectedIndices.size >= maxSelection) {
-          alert("最多只能选择三张牌");
-          return;
-        }
-        selectedIndices.add(idx);
-        card.classList.add("selected");
-        card.style.zIndex = 10000;
-      }
-      updateFlipBtn();
-    });
-
+    card.addEventListener("click", () => toggleSelection(card));
+    card.addEventListener("keydown", handleCardKeydown);
     container.appendChild(card);
+
+    updateCardAccessibility(card);
   });
 
-  if (window.cardTextData) {
-    document.querySelectorAll(".card").forEach((card) => {
-      const idx = card.dataset.index;
-      const back = card.querySelector(".back");
-      const nameDiv = back.querySelector(".name");
-      const uprightDiv = back.querySelector(".hover-upright");
-      const reversedDiv = back.querySelector(".hover-reversed");
-      if (window.cardTextData[idx]) {
-        if (nameDiv) nameDiv.textContent = window.cardTextData[idx].name;
-        if (uprightDiv) uprightDiv.textContent = window.cardTextData[idx].upright;
-        if (reversedDiv) reversedDiv.textContent = window.cardTextData[idx].reversed;
-        const isReversed = back.classList.contains("reverse");
-        uprightDiv.dataset.active = isReversed ? "false" : "true";
-        reversedDiv.dataset.active = isReversed ? "true" : "false";
+  populateCardText();
+  layoutDesktopDeck();
+  updateSelectionUI();
+}
+
+function updateSelectionUI() {
+  const count = selectedIndices.size;
+  flipBtn.disabled = count !== maxSelection;
+  container.classList.toggle("selection-locked", count >= maxSelection);
+
+  document.querySelectorAll(".card").forEach((card) => {
+    updateCardAccessibility(card);
+  });
+
+  selectionStatus.querySelectorAll(".reading-slot").forEach((slot, index) => {
+    slot.classList.toggle("active", index < count);
+  });
+  selectionStatus.setAttribute(
+    "aria-label",
+    `${count} of ${maxSelection} cards selected: past, present, future`
+  );
+}
+
+// ---------- Reveal / restart ----------
+function finishRevealAnimation(cards) {
+  cards.forEach((card) => {
+    card.classList.remove("reveal-moving");
+    card.style.removeProperty("transition");
+    card.style.removeProperty("transform");
+    card.style.removeProperty("transform-origin");
+    card.style.removeProperty("will-change");
+    card.classList.add("flipped");
+    updateCardAccessibility(card);
+  });
+
+  playFlipSound();
+  flipBtn.textContent = "Da Capo";
+  flipBtn.disabled = false;
+  isRestartMode = true;
+
+  const firstVisibleCard = cards[0];
+  firstVisibleCard?.focus({ preventScroll: true });
+}
+
+function revealSelectedCards() {
+  const selected = [...selectedIndices];
+  if (selected.length !== maxSelection) return;
+
+  const selectedCards = selected
+    .map((idx) => container.querySelector(`.card[data-index='${idx}']`))
+    .filter(Boolean);
+
+  // Capture each selected card while it is still in its real deck position.
+  const startRects = new Map(
+    selectedCards.map((card) => [card, card.getBoundingClientRect()])
+  );
+
+  flipBtn.disabled = true;
+
+  // Critical: freeze CSS transitions BEFORE changing positioning modes.
+  // Otherwise left/top/transform transitions can interpolate toward the flex layout
+  // and make every card appear to launch from a shared corner.
+  selectedCards.forEach((card) => {
+    card.classList.add("reveal-moving");
+    card.style.transition = "none";
+  });
+
+  document.querySelectorAll(".card").forEach((card) => {
+    const idx = Number(card.dataset.index);
+    const isSelected = selectedIndices.has(idx);
+    card.hidden = !isSelected;
+    card.classList.remove("selected", "show-info", "flipped");
+
+    if (isSelected) {
+      card.style.order = String(selected.indexOf(idx));
+      card.style.removeProperty("left");
+      card.style.removeProperty("top");
+      card.style.removeProperty("z-index");
+    }
+  });
+
+  container.classList.remove("deck-mode", "selection-locked");
+  container.classList.add("revealed-mode");
+  container.scrollLeft = 0;
+
+  // Resolve the final flex positions only after all deck positioning has been removed.
+  void container.offsetWidth;
+
+  const animations = [];
+  const revealMoveDuration = 850;
+
+  selectedCards.forEach((card) => {
+    const start = startRects.get(card);
+    const end = card.getBoundingClientRect();
+    if (!start || !end.width || !end.height) return;
+
+    const dx = start.left - end.left;
+    const dy = start.top - end.top;
+    const sx = start.width / end.width;
+    const sy = start.height / end.height;
+
+    // Web Animations avoids any interference from the card's normal CSS transitions.
+    // Using top-left transform origin lets the measured rectangles map exactly.
+    card.style.transformOrigin = "top left";
+    card.style.willChange = "transform";
+
+    if (reduceMotion.matches || typeof card.animate !== "function") {
+      card.style.transform = "none";
+      return;
+    }
+
+    const animation = card.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
+        { transform: "translate(0px, 0px) scale(1, 1)" },
+      ],
+      {
+        duration: revealMoveDuration,
+        easing: "cubic-bezier(0.16, 0.72, 0.18, 1)",
+        fill: "none",
       }
-    });
+    );
+
+    animations.push(animation.finished.catch(() => undefined));
+  });
+
+  if (reduceMotion.matches || animations.length === 0) {
+    finishRevealAnimation(selectedCards);
+    return;
   }
+
+  Promise.all(animations).then(() => {
+    // Let the cards settle briefly before the slower face flip.
+    window.setTimeout(() => finishRevealAnimation(selectedCards), 100);
+  });
 }
 
-function updateFlipBtn() {
-  flipBtn.disabled = selectedIndices.size !== maxSelection;
-}
-
-// ---------- Flip / Restart ----------
 flipBtn.addEventListener("click", () => {
   if (isRestartMode) {
     resetApp();
     return;
   }
 
-  document.querySelectorAll(".card").forEach((card) => {
-    if (!selectedIndices.has(Number(card.dataset.index))) card.style.display = "none";
-  });
-
-  const selected = [...selectedIndices];
-  if (selected.length !== maxSelection) return;
-
-  const spacingVw = 18;
-  const cardElem = container.querySelector(".card");
-  const cardWidthPx = cardElem.getBoundingClientRect().width;
-  const vwInPx = window.innerWidth / 100;
-  const cardWidthVw = cardWidthPx / vwInPx;
-  const totalWidthVw = 3 * cardWidthVw + 2 * spacingVw;
-  const leftStartVw = 50 - totalWidthVw / 2 + cardWidthVw / 2;
-  const containerHeightVh = 90;
-  const cardHeightVh = 25;
-  const centerYvh = (containerHeightVh - cardHeightVh) / 2;
-
-  selected.forEach((idx, i) => {
-    const card = container.querySelector(`.card[data-index='${idx}']`);
-    if (card) {
-      card.dataset.originalZ = window.getComputedStyle(card).zIndex || 0;
-      card.style.left = `${leftStartVw + i * (cardWidthVw + spacingVw)}vw`;
-      card.style.top = `${centerYvh}vh`;
-      card.style.zIndex = 10001 + i;
-    }
-  });
-
-  setTimeout(() => {
-    flipSound.currentTime = 0;
-    flipSound.play().catch((err) => console.log("翻牌音效失败:", err));
-    selectedIndices.forEach((idx) => {
-      const card = container.querySelector(`.card[data-index='${idx}']`);
-      if (card) {
-        card.classList.add("flipped", "enlarged");
-        card.classList.remove("selected");
-      }
-    });
-
-    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768) {
-      const revealedCards = document.querySelectorAll(".card.flipped.enlarged");
-      if (revealedCards.length > 0) enableMobileCardToggle(revealedCards);
-    }
-
-    flipBtn.textContent = "Da Capo";
-    flipBtn.disabled = false;
-    isRestartMode = true;
-  }, 600);
+  revealSelectedCards();
 });
 
-// ---------- Mobile Card Toggle ----------
-function getMaxZ() {
-  const zs = Array.from(document.querySelectorAll(".card")).map(
-    (c) => parseInt(window.getComputedStyle(c).zIndex, 10) || 0
-  );
-  return zs.length ? Math.max(...zs) : 0;
-}
+// Escape closes any open interpretation.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || !isReadingMode()) return;
 
-let topZ = 0;
-function enableMobileCardToggle(cards) {
-  if (!topZ) topZ = getMaxZ();
-
-  cards.forEach((card) => {
-    if (!card.dataset.originalZ) {
-      card.dataset.originalZ = window.getComputedStyle(card).zIndex || 0;
-    }
-    card.dataset.isTop = "false";
-
-    card.addEventListener(
-      "click",
-      () => {
-        if (card.dataset.isTop === "true") {
-          card.style.zIndex = card.dataset.originalZ;
-          card.dataset.isTop = "false";
-        } else {
-          topZ += 1;
-          card.style.zIndex = topZ;
-          card.dataset.isTop = "true";
-        }
-      },
-      { passive: true }
-    );
+  document.querySelectorAll(".card.show-info").forEach((card) => {
+    card.classList.remove("show-info");
+    updateCardAccessibility(card);
   });
-}
+});
 
 // ---------- Reset ----------
 function resetApp() {
   selectedIndices.clear();
   isRestartMode = false;
+
   flipBtn.textContent = "Reveal";
   flipBtn.disabled = true;
-  flipBtn.style.display = "none";
+  flipBtn.hidden = true;
+  selectionStatus.hidden = true;
 
-  container.style.display = "none";
+  container.hidden = true;
   container.innerHTML = "";
+  container.className = "deck-mode";
 
+  seedStage.hidden = false;
   seedWrapper.classList.remove("shrink-out");
-  seedWrapper.style.removeProperty("transform");
-  seedWrapper.style.removeProperty("opacity");
-  void seedWrapper.offsetWidth; // reflow
-  seedWrapper.style.display = "flex";
+  seedFeedback.textContent = "";
 
   drawing = false;
+  activePointerId = null;
   drawPointsCount = 0;
+  drawDistance = 0;
+  previousPoint = null;
+  rollingSeed = 2166136261;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.beginPath();
 
-  for (let i = 0; i < cardCount; i++) order[i] = i;
+  for (let i = 0; i < cardCount; i += 1) order[i] = i;
 }
 
-// ---------- Draw Finish ----------
-function onDrawFinish() {
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const pixelStr = Array.from(imageData.data).join(",");
-  const seed = simpleHash(pixelStr);
-  seededRandom = mulberry32(seed);
+// ---------- Finish drawing ----------
+function onDrawFinish(seed) {
+  const seededRandom = mulberry32(seed || 1);
   shuffleWithSeed(seededRandom);
   selectedIndices.clear();
-  flipBtn.disabled = true;
-  flipBtn.style.display = "inline-block";
   generateCards();
 
-  // 隐藏画布
   seedWrapper.classList.add("shrink-out");
-  setTimeout(() => {
-    seedWrapper.style.display = "none";
-    container.style.display = "block";
-  }, 600);
+  const transitionDelay = reduceMotion.matches ? 0 : 700;
+
+  window.setTimeout(() => {
+    seedStage.hidden = true;
+    container.hidden = false;
+    selectionStatus.hidden = false;
+    flipBtn.hidden = false;
+    flipBtn.disabled = true;
+
+    // Re-run layout after the container becomes measurable.
+    layoutDesktopDeck();
+    updateSelectionUI();
+  }, transitionDelay);
 }
 
-// ---------- Load Card Data ----------
+// ---------- Responsive layout ----------
+function handleLayoutChange() {
+  if (isReadingMode()) return;
+  layoutDesktopDeck();
+}
+
+if (compactLayout.addEventListener) {
+  compactLayout.addEventListener("change", handleLayoutChange);
+} else {
+  compactLayout.addListener(handleLayoutChange);
+}
+window.addEventListener("resize", handleLayoutChange);
+
+// ---------- Load card data ----------
 fetch("data/card.json")
-  .then((response) => response.json())
+  .then((response) => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  })
   .then((data) => {
     window.cardTextData = data;
+    populateCardText();
+  })
+  .catch((err) => {
+    console.error("Card data failed to load:", err);
+    seedFeedback.textContent = "Card images will still work, but interpretation text could not be loaded.";
   });
