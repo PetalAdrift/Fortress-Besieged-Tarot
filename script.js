@@ -275,10 +275,13 @@ function populateCardText() {
 }
 
 
-function syncCardOrientation(card) {
+function syncCardOrientation(card, animate = false) {
   const idx = Number(card.dataset.index);
   const isReversed = !cardOrientation[idx];
 
+  // This class controls which interpretation/text orientation is active.
+  // The visible rotation angle itself is kept separately so every inversion
+  // can continue in the same direction instead of alternating directions.
   card.classList.toggle("orientation-reversed", isReversed);
 
   const uprightDiv = card.querySelector(".hover-upright");
@@ -287,6 +290,15 @@ function syncCardOrientation(card) {
   if (uprightDiv) uprightDiv.dataset.active = isReversed ? "false" : "true";
   if (reversedDiv) reversedDiv.dataset.active = isReversed ? "true" : "false";
 
+  const frame = card.querySelector(".orientation-frame");
+
+  if (!animate && frame) {
+    // Establish the seeded starting orientation before the card is painted.
+    const initialAngle = isReversed ? 180 : 0;
+    card.dataset.orientationAngle = String(initialAngle);
+    frame.style.transform = `rotateZ(${initialAngle}deg)`;
+  }
+
   updateCardAccessibility(card);
 }
 
@@ -294,8 +306,23 @@ function toggleCardOrientation(card) {
   if (isReadingMode()) return;
 
   const idx = Number(card.dataset.index);
+  const frame = card.querySelector(".orientation-frame");
+
+  // Toggle the real tarot orientation first.
   cardOrientation[idx] = !cardOrientation[idx];
-  syncCardOrientation(card);
+
+  // Always advance the visual angle by +180 degrees. Because the transform
+  // function and angle remain continuous (0 -> 180 -> 360 -> 540 ...), both
+  // upright-to-reversed and reversed-to-upright rotate in the same direction.
+  const currentAngle = Number(card.dataset.orientationAngle || 0);
+  const nextAngle = currentAngle + 180;
+  card.dataset.orientationAngle = String(nextAngle);
+
+  if (frame) {
+    frame.style.transform = `rotateZ(${nextAngle}deg)`;
+  }
+
+  syncCardOrientation(card, true);
 }
 
 // Native mouse double-clicks fire two ordinary click events first, so the
@@ -437,10 +464,6 @@ function generateCards() {
     back.className = "back";
     back.style.backgroundImage = `url("images/${cardIndex}.jpg")`;
 
-    if (!cardOrientation[cardIndex]) {
-      card.classList.add("orientation-reversed");
-    }
-
     const overlay = document.createElement("div");
     overlay.className = "overlay";
 
@@ -457,6 +480,10 @@ function generateCards() {
     inner.append(front, back);
     orientationFrame.appendChild(inner);
     card.appendChild(orientationFrame);
+
+    // Initialize the seeded orientation before inserting the card into the
+    // document, preventing an unwanted startup rotation animation.
+    syncCardOrientation(card);
 
     card.addEventListener("click", () => toggleSelection(card));
     card.addEventListener("dblclick", handleCardDoubleClick);
